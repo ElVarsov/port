@@ -20,7 +20,7 @@ export default function Dashboard() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-gray-900 text-white p-6">
+    <div className="flex h-screen bg-white-900 text-black p-6">
       {/* Left side - Live Image */}
       <div className="flex-1 flex justify-center items-center">
         <Image
@@ -33,7 +33,7 @@ export default function Dashboard() {
       </div>
 
       {/* Right side - Information Panel */}
-      <div className="w-1/3 bg-gray-800 p-6 rounded-xl shadow-lg">
+      <div className="w-1/2 bg-white-900 p-6 flex flex-col justify-center">
         <h2 className="text-2xl font-semibold">Queue Monitoring</h2>
         <p className="text-lg mt-4">People Count: <span className="font-bold">{peopleCount}</span></p>
         <p className="text-lg">Estimated Wait Time: <span className="font-bold">{queueTime}</span></p>
