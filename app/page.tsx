@@ -1,43 +1,72 @@
-'use client';
-import { useState, useEffect } from 'react';
-import Image from 'next/image';
+"use client";
+import React, { useRef, useEffect, useState } from "react";
+import * as cocoSsd from "@tensorflow-models/coco-ssd";
+import * as tf from "@tensorflow/tfjs";
 
-export default function Dashboard() {
-  const [peopleCount, setPeopleCount] = useState(0);
-  const [queueTime, setQueueTime] = useState('0 min'); // Initialize as string
-  const [imageSrc, setImageSrc] = useState('/placeholder.jpg'); // Replace with your CCTV feed
+const PeopleCounter = () => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [count, setCount] = useState(0);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      // Simulating live image update (replace with real image URL)
-      setImageSrc(`/api/live-image?timestamp=${Date.now()}`);
+    const setupCamera = async () => {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 640, height: 480 },
+      });
+      if (videoRef.current) {
+        (videoRef.current as HTMLVideoElement).srcObject = stream;
+      }
+    };
 
-      // Simulated data fetching (replace with real API calls)
-      setPeopleCount(Math.floor(Math.random() * 20));
-      setQueueTime(Math.floor(Math.random() * 15) + ' min'); // Ensure this is a string
-    }, 5000);
-    return () => clearInterval(interval);
+    const detectPeople = async () => {
+      await tf.setBackend('webgl');
+      const model = await cocoSsd.load();
+      const video = videoRef.current as HTMLVideoElement;
+      const canvas = canvasRef.current as HTMLCanvasElement;
+      const ctx = canvas?.getContext("2d");
+
+      const processFrame = async () => {
+        if (video && video.readyState === 4) {
+          const predictions = await model.detect(video as HTMLVideoElement);
+          const people = predictions.filter(p => p.class === "person");
+          setCount(people.length);
+
+          // Draw heatmap
+          ctx?.clearRect(0, 0, canvas.width, canvas.height);
+          ctx?.drawImage(video, 0, 0, canvas.width, canvas.height);
+          people.forEach(({ bbox }) => {
+            if (ctx) {
+              const [x, y, width, height] = bbox;
+              const centerX = x + width / 2;
+              const centerY = y + height / 2;
+              const radius = Math.max(width, height) / 2;
+
+              const gradient = ctx.createRadialGradient(centerX, centerY, 0, centerX, centerY, radius);
+              gradient.addColorStop(0, 'rgba(255, 0, 0, 0.5)');
+              gradient.addColorStop(1, 'rgba(255, 0, 0, 0)');
+
+              ctx.fillStyle = gradient;
+              ctx.fillRect(x, y, width, height);
+            }
+          });
+        }
+        requestAnimationFrame(processFrame);
+      };
+      processFrame();
+    };
+
+    setupCamera().then(detectPeople);
   }, []);
 
   return (
-    <div className="flex h-screen bg-white-900 text-black p-6">
-      {/* Left side - Live Image */}
-      <div className="flex-1 flex justify-center items-center">
-        <Image
-          src={imageSrc}
-          alt="Live Feed"
-          width={500}
-          height={500}
-          className="rounded-xl shadow-lg"
-        />
-      </div>
-
-      {/* Right side - Information Panel */}
-      <div className="w-1/2 bg-white-900 p-6 flex flex-col justify-center">
-        <h2 className="text-2xl font-semibold">Queue Monitoring</h2>
-        <p className="text-lg mt-4">People Count: <span className="font-bold">{peopleCount}</span></p>
-        <p className="text-lg">Estimated Wait Time: <span className="font-bold">{queueTime}</span></p>
+    <div style={{ textAlign: "center" }}>
+      <h1>People Count: {count}</h1>
+      <div style={{ position: "relative", width: 640, height: 480 }}>
+        <video ref={videoRef} autoPlay playsInline muted width="640" height="480" style={{ position: "absolute" }} />
+        <canvas ref={canvasRef} width="640" height="480" style={{ position: "absolute", top: 0, left: 0 }} />
       </div>
     </div>
   );
-}
+};
+
+export default PeopleCounter;
